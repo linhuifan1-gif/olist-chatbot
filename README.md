@@ -24,6 +24,7 @@ The chatbot uses a **4-path routing system**:
 - **Hybrid Routing** — single `router:str` state field controls routing across the entire graph
 - **Token Optimization** — intermediate results cleared after each turn to prevent context overflow
 - **Graceful Fallback** — friendly error messages when questions cannot be answered
+- **REST API** — FastAPI backend exposing the chatbot as an HTTP endpoint with thread-based memory
 
 ---
 
@@ -31,6 +32,8 @@ The chatbot uses a **4-path routing system**:
 
 - **LangGraph** — graph-based workflow orchestration
 - **LangChain** — prompt templates, chains, output parsers
+- **FastAPI** — REST API backend
+- **Streamlit** — web chat interface
 - **OpenAI GPT-4o-mini** — language model
 - **FAISS** — vector store for customer review retrieval
 - **SQLite + LangChain SQLDatabase** — structured data queries
@@ -43,9 +46,12 @@ The chatbot uses a **4-path routing system**:
 
 ```
 olist-chatbot/
-├── agent.ipynb        # Main chatbot (LangGraph version)
+├── agent.py           # Streamlit chatbot (LangGraph + Memory)
+├── api_agent.py       # FastAPI REST API version
+├── agent.ipynb        # Jupyter notebook version
 ├── faiss_db/          # FAISS vector index
 ├── olist.db           # SQLite database
+├── architecture.png   # Graph architecture diagram
 ├── .env               # API keys (not included)
 └── README.md
 ```
@@ -54,16 +60,15 @@ olist-chatbot/
 
 ## How to Run
 
-1. Clone the repo and switch to the `langgraph-version` branch:
+1. Clone the repo:
 ```bash
 git clone https://github.com/linhuifan1-gif/olist-chatbot.git
 cd olist-chatbot
-git checkout langgraph-version
 ```
 
 2. Install dependencies:
 ```bash
-pip install langchain langgraph langchain-openai langchain-community faiss-cpu python-dotenv
+pip install langchain langgraph langchain-openai langchain-community faiss-cpu python-dotenv streamlit fastapi uvicorn
 ```
 
 3. Create a `.env` file with your API key:
@@ -72,18 +77,27 @@ OPENAI_API_KEY=your_key_here
 OPENAI_BASE_URL=your_base_url_here
 ```
 
-4. Open `agent.ipynb` and run all cells.
+4. Run:
+```bash
+# Option 1: Streamlit UI
+streamlit run agent.py
+
+# Option 2: FastAPI REST API
+uvicorn api_agent:app --reload
+# Visit http://127.0.0.1:8000/docs to test
+```
 
 ---
 
 ## Comparison: LangChain vs LangGraph Version
 
-| Feature | LangChain (main) | LangGraph (this branch) |
+| Feature | LangChain (original) | LangGraph (this version) |
 |---|---|---|
 | Multi-turn Memory | ❌ | ✅ |
 | SQL Error Retry | ❌ | ✅ (up to 3x) |
 | Token Management | ❌ | ✅ |
 | Graph Visualization | ❌ | ✅ |
+| REST API | ❌ | ✅ |
 | Routing | if-else | Conditional edges |
 
 ---
