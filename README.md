@@ -49,6 +49,7 @@ olist-chatbot/
 ├── agent.py           # Streamlit chatbot (LangGraph + Memory)
 ├── api_agent.py       # FastAPI REST API version
 ├── agent.ipynb        # Jupyter notebook version
+├── app.py             # Original LangChain version (for comparison)
 ├── faiss_db/          # FAISS vector index
 ├── olist.db           # SQLite database
 ├── architecture.png   # Graph architecture diagram
