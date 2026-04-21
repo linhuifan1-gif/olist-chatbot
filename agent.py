@@ -221,7 +221,8 @@ route_prompt = ChatPromptTemplate.from_messages([
         1. return rag:
             When the question is about: 
                 customer feeling, 
-                product review
+                product review,
+                complaints about products, delivery or service,
                 problem for product like delivery delay problem, quality problem
                 When question is about delivery, like day, feeling
 

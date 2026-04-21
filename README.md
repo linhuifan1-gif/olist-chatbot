@@ -1,6 +1,15 @@
 # Olist E-commerce Chatbot
 
-An AI-powered customer service chatbot built on the [Olist Brazilian E-commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce). This project demonstrates an iterative architectural evolution from a basic LangChain implementation to a full Multi-Agent system built on LangGraph.
+An AI-powered customer service chatbot built on the [Olist Brazilian E-commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce).  
+This project demonstrates an iterative architectural evolution across three versions — from a basic LangChain pipeline, to a workflow-based LangGraph system, to a multi-agent architecture with multilingual support.
+
+---
+
+## Demo
+
+![Streamlit UI](demo.png)
+
+> Streamlit-based chat interface running the v2 LangGraph workflow. Supports multi-turn conversation with SQL, RAG, Hybrid, and LLM fallback routing.
 
 ---
 
@@ -8,22 +17,37 @@ An AI-powered customer service chatbot built on the [Olist Brazilian E-commerce 
 
 | Version | Architecture | Key Features |
 | --- | --- | --- |
-| v1.0 LangChain | if-else Router + Chain | Baseline RAG + SQL Agent |
-| v2.0 LangGraph | Graph + Conditional Edges | Multi-turn Memory, SQL retry, Token management, REST API |
-| v3.0 Multi-Agent | LangGraph + Autonomous Agent Nodes | Each node upgraded to a self-managing Agent |
+| v1.0 LangChain | if-else Router + Chain | Baseline SQL + RAG pipeline |
+| v2.0 LangGraph | Graph + Conditional Edges | Multi-turn Memory, SQL retry, Token management, Streamlit UI, REST API |
+| v3.0 Multi-Agent | LangGraph + Autonomous Agents + Language Detection + Translation | Agent-based execution, multilingual input/output, unified translation layer |
+
+---
+
+## Project Goal
+
+The goal of this project is to build a customer-support-style assistant that can answer different types of e-commerce questions through different reasoning paths:
+
+- **SQL path** for structured questions such as counts, rankings, and statistics
+- **RAG path** for semantic questions over customer reviews
+- **Hybrid path** for questions requiring both structured filtering and review-based evidence
+- **LLM path** for general conversation and out-of-scope requests
+
+Instead of forcing all questions into one pipeline, the system routes each query to the most suitable path.
 
 ---
 
 ## Architecture
 
-### v3.0 — Multi-Agent (Latest)
+### v3.0 — Multi-Agent with Language Support (Latest)
 
-The latest version upgrades each graph node from fixed workflow logic to an **autonomous Agent**. Each agent independently decides how to use its tools, retry on errors, and format responses — no hardcoded logic required.
+v3 upgrades each graph node from fixed workflow logic to an **autonomous Agent**, and adds a dedicated **language detection + translation layer** so the system can handle multilingual input and return answers in the user's original language.
 
-```
+```text
 User Input
     ↓
-router_node (LLM classifies intent)
+language_detection_node  (detect user's language)
+    ↓
+router_node              (LLM classifies intent)
     ↓
 ┌─────────────┬──────────────┬────────────────┬────────────┐
 │  sql_agent  │  rag_agent   │ hybrid_agent   │  llm_agent │
@@ -31,41 +55,116 @@ router_node (LLM classifies intent)
 │  + retry    │  + summary   │ combined answer│            │
 └─────────────┴──────────────┴────────────────┴────────────┘
     ↓
-Final Answer (with MemorySaver across turns)
+translation_node         (translate back to user's language)
+    ↓
+Final Answer
 ```
 
-**4-path routing system:**
+**4-path routing system**
 
-- **SQL path** — structured queries: order counts, sales stats, product rankings
+- **SQL path** — structured queries such as order counts, sales statistics, and product rankings
 - **RAG path** — semantic search over customer reviews using FAISS
-- **Hybrid path** — SQL result passed as context into RAG search (e.g. "What do customers say about top-rated orders?")
-- **LLM path** — general conversation and out-of-scope questions
+- **Hybrid path** — SQL results combined with RAG-based semantic evidence for richer answers
+- **LLM path** — general conversation and unsupported questions
 
-**Key upgrades in v3.0:**
+**Key ideas in v3.0**
 
-- `sql_agent`: autonomously generates SQL, executes via tool, retries on failure using error feedback in prompt — no hardcoded retry counter
-- `rag_agent`: retrieves and summarizes reviews independently
-- `hybrid_agent`: runs SQL first, passes structured results as context into RAG retrieval
-- `llm_agent`: lightweight fallback with no tools, handles general questions gracefully
+- `language_detection_node`: detects user language (English, Chinese, Spanish, etc.) and stores it in state
+- `sql_agent`: generates SQL, executes via tool, and retries on failure using prompt feedback
+- `rag_agent`: retrieves and summarizes review evidence
+- `hybrid_agent`: combines SQL filtering with RAG-based semantic evidence
+- `llm_agent`: lightweight fallback for general questions
+- `translation_node`: unified post-processing step that translates the final answer back into the user's original language
 
-### v2.0 — LangGraph
+**Why centralize translation?**  
+Earlier versions required each prompt to handle language formatting manually, which was hard to maintain and inconsistent. v3 moves language handling into a dedicated node, so agents focus on reasoning while one place owns output language.
 
-![Architecture](architecture.png)
+### v2.0 — LangGraph Workflow
 
-Fixed-logic graph with conditional edges. SQL retry and error handling implemented via explicit `result_check` and `error_count` nodes.
+![v2 Architecture](architecture.png)
+
+The v2 version uses a fixed-logic LangGraph workflow with conditional edges.
+
+Main flow:
+
+1. Route the user question
+2. Run SQL / RAG / LLM based on intent
+3. For hybrid questions, run SQL first and then pass SQL results into the RAG step
+4. Retry SQL up to 3 times if execution fails
+5. Return a summarized answer
+
+This is the most complete **deployable** version in the repository because it includes:
+
+- **Streamlit UI**
+- **FastAPI REST API**
+- **MemorySaver-based multi-turn memory**
+- **Full evaluation results**
+
+---
+
+## Evaluation
+
+The project includes two evaluation sets — a comprehensive one for v2 and a focused quick-check for v3.
+
+### v2 Full Evaluation (20 cases)
+
+| Metric | Score |
+| --- | --- |
+| **Strict Accuracy** | **65.0%** |
+| **Lenient Success Rate** | **90.0%** |
+
+**Per-path breakdown:**
+
+| Path | Strict Accuracy | Lenient Success Rate |
+| --- | --- | --- |
+| SQL | 100% | 100% |
+| LLM Fallback | 100% | 100% |
+| RAG | 40% | 100% |
+| Hybrid | 40% | 80% |
+| Memory Follow-up | 50% | 50% |
+
+**Key observations:**
+
+- **SQL** was the most reliable path — all structured queries returned correct results
+- **RAG** retrieved relevant content consistently, but summarization quality was sometimes too generic
+- **Hybrid** was the most sensitive to prompt design — complex price + review combinations were less stable
+- **LLM fallback** handled greetings and out-of-scope questions correctly in all cases
+- **Memory** worked well in short, explicit follow-ups but degraded in longer multi-turn conversations
+
+### v3 Quick Evaluation (8 cases)
+
+A focused check covering core paths plus the two new v3 capabilities (multilingual input and agentized execution).
+
+| Category | Cases | Result |
+| --- | --- | --- |
+| SQL | 2 | Both correct |
+| RAG | 1 | Correct |
+| Hybrid | 2 | 1 correct, 1 partial |
+| Memory Follow-up | 1 | Correct |
+| Language Following (Chinese, Spanish) | 2 | Both correct |
+
+**v3 notes:**
+
+- Agent-style execution worked and language-following behavior is significantly better after adding the translation node
+- Overall answer quality is comparable to v2 — the main difference is execution style and flexibility, not dramatic accuracy gains
+- v3 is treated as an agentized extension of the same system rather than a fully stronger replacement
+
+Files: `evaluation_v2.ipynb`, `evaluation_v2.csv`, `quick_evl_v3.ipynb`, `evaluation_v3.csv`
 
 ---
 
 ## Key Features
 
+- **4-path routing** — SQL, RAG, Hybrid, and LLM fallback
+- **Multilingual Support (v3)** — language detection at entry and translation at exit
 - **Multi-turn Memory** — conversation history preserved across turns using LangGraph `MemorySaver` + `thread_id`
-- **Autonomous Agent Nodes** — each agent manages its own tool usage, retry logic, and output formatting
-- **Hybrid Retrieval** — SQL structured results combined with FAISS semantic search for richer answers
-- **SQL Error Retry** — agent retries up to 3 times with error feedback when SQL execution fails
-- **Token Optimization** — SQL results truncated and RAG results limited to prevent context overflow
-- **Graceful Fallback** — LLM agent handles unsupported questions with friendly responses
+- **Hybrid Retrieval** — SQL structured results combined with FAISS semantic search
+- **SQL Error Retry** — SQL path retries up to 3 times with error feedback when execution fails
+- **Token Optimization** — SQL results truncated and RAG results limited to reduce context overflow
+- **Graceful Fallback** — general questions handled by the LLM path
 - **REST API** — FastAPI backend exposing the chatbot as an HTTP endpoint with thread-based memory
 - **Streamlit UI** — browser-based chat interface for live demonstration
+- **Evaluation** — manual evaluation for both v2 (full) and v3 (quick) with query-type breakdown
 
 ---
 
@@ -73,7 +172,7 @@ Fixed-logic graph with conditional edges. SQL retry and error handling implement
 
 | Category | Tools |
 | --- | --- |
-| Agent Framework | LangGraph, LangChain |
+| Agent / Workflow Framework | LangGraph, LangChain |
 | Language Model | OpenAI GPT-4o-mini |
 | Vector Store | FAISS |
 | Database | SQLite + LangChain SQLDatabase |
@@ -85,16 +184,21 @@ Fixed-logic graph with conditional edges. SQL retry and error handling implement
 
 ## Project Structure
 
-```
+```text
 olist-chatbot/
-├── agent.py              # v2.0 Streamlit chatbot (LangGraph + Memory)
-├── agent.ipynb           # v2.0 Jupyter notebook version
-├── multi_agent.ipynb     # v3.0 Multi-Agent version (latest)
+├── agent.py              # v2.0 Streamlit chatbot (LangGraph workflow)
+├── agent.ipynb           # v2.0 notebook version
+├── multi_agent.ipynb     # v3.0 multi-agent with language support
 ├── api_agent.py          # FastAPI REST API version
-├── app.py                # v1.0 Original LangChain version (baseline)
-├── faiss_db/             # FAISS vector index
+├── app.py                # v1.0 original LangChain baseline
+├── evaluation_v2.ipynb   # v2 full evaluation notebook
+├── evaluation_v2.csv     # v2 evaluation results (20 cases)
+├── quick_evl_v3.ipynb    # v3 quick evaluation notebook
+├── evaluation_v3.csv     # v3 evaluation results (8 cases)
+├── faiss_db/             # FAISS vector index (40K+ review embeddings)
 ├── olist.db              # SQLite database
-├── architecture.png      # v2.0 graph architecture diagram
+├── architecture.png      # v2 architecture diagram
+├── demo.png              # Streamlit UI screenshot
 ├── .env                  # API keys (not included)
 └── README.md
 ```
@@ -116,28 +220,48 @@ cd olist-chatbot
 pip install langchain langgraph langchain-openai langchain-community faiss-cpu python-dotenv streamlit fastapi uvicorn
 ```
 
-### 3. Set up environment
+### 3. Prepare the data
 
-Create a `.env` file:
+This repo does not include the database or vector index because the files are too large for GitHub. You need to generate them yourself:
 
-```
+1. Download the [Olist Brazilian E-commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) from Kaggle (9 CSV files)
+2. Load the CSV files into a SQLite database named `olist.db` in the project root, with one table per CSV (e.g. `orders`, `customers`, `items`, `products`, `sellers`, `payments`, `reviews`, `geolocation`, `category_translation`)
+3. Build the FAISS vector index from the review data and save it as `faiss_db/` using OpenAI Embeddings
+
+> Note: The resulting FAISS index is around 250MB and contains 40K+ review embeddings. The notebook cells that build these files are preserved in earlier project versions for reference.
+
+### 4. Set up environment
+
+Create a `.env` file in the project root:
+
+```env
 OPENAI_API_KEY=your_key_here
 OPENAI_BASE_URL=your_base_url_here
 ```
 
-### 4. Run
+### 5. Run the project
+
+**Option 1: Streamlit UI (v2 workflow)**
 
 ```bash
-# Option 1: Streamlit UI (v2.0 LangGraph)
 streamlit run agent.py
-
-# Option 2: FastAPI REST API
-uvicorn api_agent:app --reload
-# Visit http://127.0.0.1:8000/docs to test
-
-# Option 3: Multi-Agent (v3.0) — run in Jupyter
-# Open multi_agent.ipynb
 ```
+
+**Option 2: FastAPI REST API**
+
+```bash
+uvicorn api_agent:app --reload
+```
+
+Then open: `http://127.0.0.1:8000/docs`
+
+**Option 3: Multi-Agent notebook (v3)**
+
+Open `multi_agent.ipynb`
+
+**Option 4: Evaluation notebooks**
+
+Open `evaluation_v2.ipynb` or `quick_evl_v3.ipynb`
 
 ---
 
@@ -149,19 +273,36 @@ uvicorn api_agent:app --reload
 | SQL Error Retry | ❌ | ✅ hardcoded | ✅ autonomous |
 | Token Management | ❌ | ✅ | ✅ |
 | Graph Visualization | ❌ | ✅ | ✅ |
-| REST API | ❌ | ✅ | ✅ |
+| REST API | ❌ | ✅ | ❌ |
 | Routing | if-else | Conditional edges | LLM + Conditional edges |
 | Node Logic | Fixed functions | Fixed functions | Autonomous Agents |
 | Retry Logic | None | Hardcoded counter | LLM self-managed |
+| Language Detection | ❌ | ❌ | ✅ |
+| Multilingual Output | ❌ | ❌ | ✅ |
 
 ---
 
 ## Dataset
 
-[Olist Brazilian E-commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) — 100K+ orders, 9 relational tables, customer reviews in Portuguese.
+[Olist Brazilian E-commerce Dataset](https://www.kaggle.com/datasets/olistbr/brazilian-ecommerce) — 100K+ orders, multiple relational tables, and customer reviews in Portuguese.
+
+This dataset makes it possible to test:
+
+- Structured SQL-style e-commerce analysis
+- Review-based semantic retrieval
+- Hybrid customer-support scenarios
+
+---
+
+## Notes and Limitations
+
+- The project focuses on **application-layer AI system design**, not model training
+- Hybrid questions are more sensitive to prompt design than pure SQL or RAG questions
+- Memory works best in short, explicit follow-up scenarios
+- v3.0 focuses on upgrading node autonomy and adding multilingual handling within the same routing architecture, demonstrating how agent-based design improves flexibility and user experience compared to fixed workflow logic
 
 ---
 
 ## About
 
-Built as a capstone AI application project demonstrating the architectural evolution from rule-based workflows to autonomous multi-agent systems, using real-world e-commerce data.
+Built as an AI application / agent workflow project demonstrating the evolution from a baseline LangChain pipeline to a LangGraph workflow system to a multi-agent architecture with multilingual support, using a real-world e-commerce dataset.
