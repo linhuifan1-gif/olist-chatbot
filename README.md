@@ -145,11 +145,11 @@ A focused check covering core paths plus the two new v3 capabilities (multilingu
 
 **v3 notes:**
 
-- Agent-style execution worked and language-following behavior is significantly better after adding the translation node
+- Agent-style execution worked and language-following behavior improved after adding the translation node
 - Overall answer quality is comparable to v2 — the main difference is execution style and flexibility, not dramatic accuracy gains
 - v3 is treated as an agentized extension of the same system rather than a fully stronger replacement
 
-Files: `evaluation_v2.ipynb`, `evaluation_v2.csv`, `quick_evl_v3.ipynb`, `evaluation_v3.csv`
+Files: `evaluation_v2.ipynb`, `evaluation_v2.csv`, `quick_eval_v3.ipynb`, `evaluation_v3.csv`
 
 ---
 
@@ -193,7 +193,7 @@ olist-chatbot/
 ├── app.py                # v1.0 original LangChain baseline
 ├── evaluation_v2.ipynb   # v2 full evaluation notebook
 ├── evaluation_v2.csv     # v2 evaluation results (20 cases)
-├── quick_evl_v3.ipynb    # v3 quick evaluation notebook
+├── quick_eval_v3.ipynb   # v3 quick evaluation notebook
 ├── evaluation_v3.csv     # v3 evaluation results (8 cases)
 ├── faiss_db/             # FAISS vector index (40K+ review embeddings)
 ├── olist.db              # SQLite database
@@ -261,7 +261,7 @@ Open `multi_agent.ipynb`
 
 **Option 4: Evaluation notebooks**
 
-Open `evaluation_v2.ipynb` or `quick_evl_v3.ipynb`
+Open `evaluation_v2.ipynb` or `quick_eval_v3.ipynb`
 
 ---
 
@@ -299,7 +299,7 @@ This dataset makes it possible to test:
 - The project focuses on **application-layer AI system design**, not model training
 - Hybrid questions are more sensitive to prompt design than pure SQL or RAG questions
 - Memory works best in short, explicit follow-up scenarios
-- v3.0 focuses on upgrading node autonomy and adding multilingual handling within the same routing architecture, demonstrating how agent-based design improves flexibility and user experience compared to fixed workflow logic
+- v3.0 mainly explores more autonomous execution and multilingual handling within the same routing architecture
 
 ---
 
