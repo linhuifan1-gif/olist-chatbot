@@ -20,6 +20,7 @@ This project demonstrates an iterative architectural evolution across three vers
 | v1.0 LangChain | if-else Router + Chain | Baseline SQL + RAG pipeline |
 | v2.0 LangGraph | Graph + Conditional Edges | Multi-turn Memory, SQL retry, Token management, Streamlit UI, REST API |
 | v3.0 Multi-Agent | LangGraph + Autonomous Agents + Language Detection + Translation | Agent-based execution, multilingual input/output, unified translation layer |
+| v3.1 Performance | Wide Table + Metadata Filtering + Reject Node | SQL latency -48%, Hybrid latency -53%, out-of-scope response -87% |
 
 ---
 
@@ -38,7 +39,34 @@ Instead of forcing all questions into one pipeline, the system routes each query
 
 ## Architecture
 
-### v3.0 — Multi-Agent with Language Support (Latest)
+### v3.1 — Performance Optimization (Latest)
+
+v3.1 builds on v3.0 with targeted optimizations driven by a 25-case benchmark evaluation using LangSmith tracing.
+
+**Key changes:**
+
+- **Wide table (`customer_shopping_info`)** — flattened view covering orders, customers, items, products, payments, reviews, and sellers. Reduces multi-table join overhead for most SQL queries.
+- **`schema_tool`** — on-demand raw schema access, only invoked for complex queries that need it.
+- **FAISS metadata filtering** — RAG retrieval now filters by `customer_state`, `product_category_name`, `review_score`, and `payment_type` before similarity search, reducing noise.
+- **`reject_answer_node`** — out-of-scope questions handled by direct string output without calling the LLM, cutting response time from 7–13s to ~1.2s.
+- **`lingua` language detection** — replaces LLM-based detection in the translation node; only triggers translation when input and output language differ.
+- **SQL logic fixes** — corrected date-difference calculations, deduplication rules, and category-level sales aggregation.
+
+**Performance results (25-case benchmark):**
+
+| Path | Before | After | Change |
+| --- | --- | --- | --- |
+| SQL (avg) | 8.3s | 4.3s | **-48%** |
+| Hybrid (avg) | 22.0s | 10.3s | **-53%** |
+| LLM in-scope | 7.1s | 2.5s | **-65%** |
+| LLM out-of-scope | 9.2s | 1.2s | **-87%** |
+| RAG (avg) | 7.2s | 5.9s | -18% |
+
+Router accuracy: **25/25 (100%)** on the benchmark set.
+
+---
+
+### v3.0 — Multi-Agent with Language Support
 
 v3 upgrades each graph node from fixed workflow logic to an **autonomous Agent**, and adds a dedicated **language detection + translation layer** so the system can handle multilingual input and return answers in the user's original language.
 
@@ -153,6 +181,25 @@ Files: `evaluation_v2.ipynb`, `evaluation_v2.csv`, `quick_eval_v3.ipynb`, `evalu
 
 ---
 
+### v3.1 Benchmark Evaluation (25 cases)
+
+Full benchmark run using LangSmith tracing, covering all routing paths and multilingual inputs.
+
+| Category | Cases | Route Accuracy | Notes |
+| --- | --- | --- | --- |
+| SQL | 5 | 5/5 | Major logic fixes: date calculation, deduplication, aggregation |
+| RAG | 5 | 5/5 | Answer quality improved with metadata filtering |
+| Hybrid | 5 | 5/5 | Serial SQL→RAG flow stable; latency reduced by 53% |
+| LLM in-scope | 3 | 3/3 | Scoped to Olist business context |
+| LLM out-of-scope | 3 | 3/3 | Handled by reject node, no LLM call needed |
+| Multilingual (CN/PT/Mixed) | 4 | 4/4 | lingua-based detection, output language consistent |
+
+Overall router accuracy: **25/25 (100%)**
+
+Files: `bench_work.xlsx`, `develop_result.xlsx`
+
+---
+
 ## Key Features
 
 - **4-path routing** — SQL, RAG, Hybrid, and LLM fallback
@@ -189,12 +236,15 @@ olist-chatbot/
 ├── agent.py              # v2.0 Streamlit chatbot (LangGraph workflow)
 ├── agent.ipynb           # v2.0 notebook version
 ├── multi_agent.ipynb     # v3.0 multi-agent with language support
+├── multi_agent_v3.1.ipynb # v3.1 performance-optimized version
 ├── api_agent.py          # FastAPI REST API version
 ├── app.py                # v1.0 original LangChain baseline
 ├── evaluation_v2.ipynb   # v2 full evaluation notebook
 ├── evaluation_v2.csv     # v2 evaluation results (20 cases)
 ├── quick_eval_v3.ipynb   # v3 quick evaluation notebook
 ├── evaluation_v3.csv     # v3 evaluation results (8 cases)
+├── bench_work.xlsx        # v3.1 benchmark baseline (25 cases, LangSmith traced)
+├── develop_result.xlsx    # v3.1 before/after performance comparison
 ├── faiss_db/             # FAISS vector index (40K+ review embeddings)
 ├── olist.db              # SQLite database
 ├── architecture.png      # v2 architecture diagram
@@ -257,11 +307,11 @@ Then open: `http://127.0.0.1:8000/docs`
 
 **Option 3: Multi-Agent notebook (v3)**
 
-Open `multi_agent.ipynb`
+Open  (latest) or  (v3.0)`multi_agent.ipynb`
 
 **Option 4: Evaluation notebooks**
 
-Open `evaluation_v2.ipynb` or `quick_eval_v3.ipynb`
+Open  (latest) or  (v3.0)`evaluation_v2.ipynb` or `quick_eval_v3.ipynb`
 
 ---
 
@@ -279,6 +329,10 @@ Open `evaluation_v2.ipynb` or `quick_eval_v3.ipynb`
 | Retry Logic | None | Hardcoded counter | LLM self-managed |
 | Language Detection | ❌ | ❌ | ✅ |
 | Multilingual Output | ❌ | ❌ | ✅ |
+| Wide Table / Schema Tool | ❌ | ❌ | ✅ (v3.1) |
+| Metadata Filtering (RAG) | ❌ | ❌ | ✅ (v3.1) |
+| Out-of-scope Reject Node | ❌ | ❌ | ✅ (v3.1) |
+| Benchmark Evaluation | ❌ | ✅ 20 cases | ✅ 25 cases (LangSmith) |
 
 ---
 
@@ -300,6 +354,7 @@ This dataset makes it possible to test:
 - Hybrid questions are more sensitive to prompt design than pure SQL or RAG questions
 - Memory works best in short, explicit follow-up scenarios
 - v3.0 mainly explores more autonomous execution and multilingual handling within the same routing architecture
+- v3.1 focuses on performance optimization and accuracy improvement through wide table design, metadata filtering, and prompt engineering — not a structural change
 
 ---
 
